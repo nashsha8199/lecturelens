@@ -1,0 +1,8 @@
+openai-whisper
+sounddevice
+scipy
+scikit-learn
+pandas
+matplotlib
+seaborn
+wordcloud
