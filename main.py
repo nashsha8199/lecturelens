@@ -129,6 +129,30 @@ def action_settings(settings):
         settings["keywords"] = ask_int("Keywords to show (3-25): ", 10, 3, 25)
 
 
+def action_search():
+    """Menu option 7: search for a word inside a saved transcript."""
+    session = choose_session()          # let the user pick one saved recording from the list
+    if session is None:                 # nothing saved, or the user cancelled
+        return                          # go back to the menu
+
+    word = input("Word to search for: ").strip()   # ask for the word, .strip() removes extra spaces
+    if word == "":                      # the user typed nothing
+        print("  Please type a word.")  # tell the user what went wrong
+        return                          # go back to the menu
+
+    # ask analyze.py to do the searching in this session's transcript
+    matches = analyze.search_transcript(session["segments"], word)
+
+    if len(matches) == 0:               # the list is empty, so nothing was found
+        print(f'  No matches for "{word}".')
+        return                          # go back to the menu
+
+    print(f'\n{len(matches)} match(es) for "{word}":')   # show how many lines were found
+    for start, text in matches:         # go through each result
+        # analyze.format_time turns seconds into mm:ss, for example 75 -> 01:15
+        print(f"  [{analyze.format_time(start)}] {text}")
+
+
 def print_menu():
     print("\n===== LectureLens =====")
     print("1) Transcribe an audio file")
@@ -137,6 +161,7 @@ def print_menu():
     print("4) Show charts for a session")
     print("5) Export a session report (.txt)")
     print("6) Settings")
+    print("7) Search a transcript")
     print("0) Quit")
 
 
@@ -158,6 +183,8 @@ def main():
             action_export()
         elif choice == "6":
             action_settings(settings)
+        elif choice == "7":
+            action_search()
         elif choice == "0":
             print("Goodbye!")
             break

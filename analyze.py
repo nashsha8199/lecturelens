@@ -90,3 +90,21 @@ def get_stats(result):
         "words_per_min": round(words / (duration / 60), 1) if duration > 0 else 0,
         "unique_words": len(word_frequencies(segments)),
     }
+
+
+def search_transcript(segments, query):
+    """Find every line of the transcript that contains the word we search for.
+
+    segments = the transcript, a list of (start, end, text) groups
+    query    = the word the user typed
+    Returns a list of (start, text) pairs, one for each matching line.
+    """
+    matches = []                       # empty list where we collect the results
+    query = query.lower()              # make the word lowercase, so "Model" and "model" are the same
+
+    for start, end, text in segments:  # go through the transcript one line at a time
+                                       # (we do not need "end" here, we only use start and text)
+        if query in text.lower():      # is the word inside this line? (lowercase, so capitals are ignored)
+            matches.append((start, text))   # yes, so save the time and the line
+
+    return matches                     # give the list of results back
