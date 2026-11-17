@@ -43,24 +43,56 @@ def top_keywords(segments, k=10):
     return [(w, round(float(s), 3)) for w, s in ranked[:k]]
 
 
+def split_sentences(segments):
+    """Join the transcript pieces, then cut the text into real sentences.
+
+    Whisper pieces often stop in the middle of a sentence,
+    so we must join them first and split at . ! ? instead.
+    """
+    full_text = " ".join(text for _, _, text in segments)    # one long string
+    pieces = re.split(r"(?<=[.!?])\s+", full_text)           # cut after . ! or ?
+    return [p.strip() for p in pieces if p.strip()]          # drop empty pieces
+
+
+def tidy(sentence):
+    """Remove a spoken starter like 'So,' or 'And' and make the first letter a capital."""
+    sentence = re.sub(r"^(so|and|but|now|okay|alright|well)\b,?\s+", "", sentence, flags=re.I)
+    return sentence[:1].upper() + sentence[1:]
+
+
 def summarize(segments, n=5):
-    """Extractive summary: pick the n segments with the most important words."""
-    freq = word_frequencies(segments)
+    """Extractive summary: the best sentence from each of n parts of the lecture."""
+    freq = word_frequencies(segments)         # how often each important word is said
     if not freq:
         return []
     biggest = max(freq.values())
+    sentences = split_sentences(segments)
 
-    scored = []  # list of (score, original index)
-    for i, (_, _, text) in enumerate(segments):
-        tokens = tokenize(text)
-        if len(tokens) < 3:  # too short to be informative
+    scored = []                               # list of (score, sentence number)
+    for i, sentence in enumerate(sentences):
+        tokens = tokenize(sentence)
+        word_count = len(sentence.split())
+        # skip sentences that are too short or too long to read well
+        if len(tokens) < 3 or word_count < 6 or word_count > 40:
             continue
-        score = sum(freq[t] / biggest for t in tokens) / (len(tokens) ** 0.5)
+        # skip spoken transitions such as "Let's move on" or "Thank you for watching"
+        if re.match(r"^(so |now |okay )?(let's|let us|thank|welcome|today we|in this video)", sentence, flags=re.I):
+            continue
+        # unique important words, common words score higher; divide by length so long sentences do not always win
+        score = sum(freq[t] / biggest for t in set(tokens)) / (len(tokens) ** 0.5)
         scored.append((score, i))
 
-    best = sorted(scored, reverse=True)[:n]
-    chosen = sorted(i for _, i in best)  # keep the original order
-    return [segments[i][2] for i in chosen]
+    # cut the lecture into n equal parts and take the best sentence of each part,
+    # so the summary covers the whole lecture and not just one topic
+    chosen = []
+    size = len(sentences) / n
+    for part in range(n):
+        in_part = [(score, i) for score, i in scored
+                   if part * size <= i < (part + 1) * size]
+        if in_part:
+            chosen.append(max(in_part)[1])    # max picks the highest score
+
+    return [tidy(sentences[i]) for i in sorted(chosen)]   # keep the lecture order
 
 
 def pace_table(segments):

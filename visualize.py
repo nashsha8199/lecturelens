@@ -1,44 +1,54 @@
-"""visualize.py - charts for one session."""
+"""visualize.py - draws the two charts for the report page (as images)."""
+import base64
+import io
+
+import matplotlib
+matplotlib.use("Agg")                      # draw into memory, no chart window needed
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import seaborn as sns
-from wordcloud import WordCloud
 
 import analyze
 
+COLOR = "#6366f1"                          # indigo, matches the report page
 
-def show_dashboard(session):
-    """Word cloud + keyword bar chart + speaking pace, in one window."""
-    segments = [tuple(s) for s in session["segments"]]
-    freq = analyze.word_frequencies(segments)
-    if not freq:
-        print("  Not enough words to draw charts.")
-        return
 
-    fig, axes = plt.subplot_mosaic([["cloud", "cloud"], ["kw", "pace"]], figsize=(12, 8))
+def figure_to_base64(fig):
+    """Turn a finished chart into text, so it can sit inside the HTML page."""
+    buffer = io.BytesIO()                  # a file that lives in memory
+    fig.savefig(buffer, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
 
-    # 1) word cloud
-    cloud = WordCloud(width=1000, height=350, background_color="white") \
-        .generate_from_frequencies(dict(freq))
-    axes["cloud"].imshow(cloud, interpolation="bilinear")
-    axes["cloud"].axis("off")
-    axes["cloud"].set_title(f"Word cloud - {session['name']}")
 
-    # 2) top keywords (TF-IDF)
-    keywords = session["keywords"]
-    if keywords:
-        words = [w for w, _ in keywords]
-        scores = [s for _, s in keywords]
-        sns.barplot(x=scores, y=words, color="tab:orange", ax=axes["kw"])
-    axes["kw"].set_title("Top keywords (TF-IDF)")
-    axes["kw"].set_xlabel("score")
+def keyword_chart(keywords):
+    """Horizontal bars: the top keywords (TF-IDF score)."""
+    fig, ax = plt.subplots(figsize=(6, 4.2))
+    words = [w for w, _ in keywords]       # split the (word, score) tuples into two lists
+    scores = [s for _, s in keywords]
+    sns.barplot(x=scores, y=words, color=COLOR, ax=ax)
+    ax.set_title("Top keywords", loc="left", fontweight="bold")
+    ax.set_xlabel("TF-IDF score")
+    sns.despine(ax=ax)                     # remove the top and right lines
+    return figure_to_base64(fig)
 
-    # 3) words spoken per minute
-    pace = analyze.pace_table(segments)
-    if not pace.empty:
-        sns.barplot(data=pace, x="minute", y="words", color="tab:blue", ax=axes["pace"])
-    axes["pace"].set_title("Speaking pace")
-    axes["pace"].set_xlabel("minute")
-    axes["pace"].set_ylabel("words")
 
-    plt.tight_layout()
-    plt.show()
+def pace_chart(segments):
+    """Bars: how many words were spoken in each minute."""
+    pace = analyze.pace_table(segments)    # pandas table with the columns minute, words
+    fig, ax = plt.subplots(figsize=(6, 4.2))
+    ax.bar(pace["minute"], pace["words"], color="#94a3b8")
+    ax.set_title("Speaking pace", loc="left", fontweight="bold")
+    ax.set_xlabel("minute")
+    ax.set_ylabel("words")
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True, nbins=12))   # keep minute labels readable
+    sns.despine(ax=ax)
+    return figure_to_base64(fig)
+
+
+def make_charts(session):
+    """Return (keyword chart, pace chart) as base64 text. An empty string means 'no chart'."""
+    segments = [tuple(s) for s in session["segments"]]   # JSON turns tuples into lists, convert back
+    keyword_img = keyword_chart(session["keywords"]) if session["keywords"] else ""
+    pace_img = pace_chart(segments) if segments else ""
+    return keyword_img, pace_img

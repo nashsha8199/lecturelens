@@ -7,7 +7,7 @@ from config import SESSIONS_DIR
 import analyze
 
 
-def make_session(name, audio_path, result, summary, keywords, stats):
+def make_session(name, audio_path, result, summary, keywords, stats, ai=None):
     """Bundle everything about one recording into a dict."""
     return {
         "id": datetime.now().strftime("%Y%m%d_%H%M%S"),
@@ -19,6 +19,7 @@ def make_session(name, audio_path, result, summary, keywords, stats):
         "summary": summary,
         "keywords": keywords,
         "stats": stats,
+        "ai": ai,          # AI-written summary (a dict) or None if not made yet
     }
 
 
@@ -49,7 +50,12 @@ def export_report(session):
     lines = [f"LectureLens report: {session['name']}",
              f"Created: {session['created']}",
              "", "== SUMMARY =="]
-    lines += [f"- {s}" for s in session["summary"]]
+    ai = session.get("ai")
+    if ai:                                     # AI summary first, if we have one
+        lines += [ai["tldr"], ""]
+        lines += [f"- {point}" for point in ai["takeaways"]]
+    else:
+        lines += [f"- {s}" for s in session["summary"]]
     lines += ["", "== KEYWORDS =="]
     lines.append(", ".join(w for w, _ in session["keywords"]))
     lines += ["", "== STATS =="]

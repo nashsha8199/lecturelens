@@ -1,5 +1,7 @@
 """transcribe.py - recording audio and speech-to-text with Whisper (English)."""
 import os
+import subprocess
+import sys
 from datetime import datetime
 
 from config import SAMPLE_RATE, RECORDINGS_DIR, VALID_AUDIO
@@ -11,6 +13,28 @@ def is_valid_audio(path):
     """Check that the file exists and has an accepted extension."""
     ext = os.path.splitext(path)[1].lower()
     return os.path.isfile(path) and ext in VALID_AUDIO
+
+
+def clean_path(text):
+    """Clean a path typed or dragged into Terminal: remove quotes and backslashes before spaces."""
+    text = text.strip().strip('"').strip("'")   # remove spaces and quote marks around the path
+    return text.replace("\\ ", " ")              # Terminal writes "my\ file.mp3" for spaces, undo that
+
+
+def browse_for_file():
+    """Open the Mac file window so the user can click on the audio file.
+
+    Returns the chosen path, or "" if the user cancelled or this is not a Mac.
+    """
+    if sys.platform != "darwin":                 # darwin = macOS
+        print("  File window only works on a Mac, please type the path instead.")
+        return ""
+    # ask macOS itself to show its normal "choose a file" window
+    script = 'POSIX path of (choose file with prompt "Choose an audio file")'
+    result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+    if result.returncode != 0:                   # the user pressed Cancel
+        return ""
+    return result.stdout.strip()                 # the chosen path, without the line break
 
 
 def record_audio(seconds):
