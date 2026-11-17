@@ -80,11 +80,13 @@ def ai_summarize(text):
         client = anthropic.Anthropic(api_key=key)
         reply = client.messages.create(
             model=AI_MODEL,
-            max_tokens=1500,
+            max_tokens=4000,     # room for the thinking block plus the answer
             system=INSTRUCTIONS,
             messages=[{"role": "user", "content": text[:100000]}],   # limit very long transcripts
         )
-        raw = reply.content[0].text
+        # the reply is a list of blocks; some models add a "thinking" block first,
+        # so keep only the blocks of type "text" and join them
+        raw = "".join(block.text for block in reply.content if block.type == "text")
     except Exception as error:            # wrong key, no internet, no credit, ...
         print(f"  AI summary failed: {error}")
         return None
